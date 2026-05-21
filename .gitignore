@@ -1,0 +1,18 @@
+# Caches
+*.pkl
+.cache_*
+__pycache__/
+*.pyc
+
+# Backtest outputs (regenerable)
+*_results.csv
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Local secrets (กันลืม)
+.env
+*.key
+api_keys.txt
