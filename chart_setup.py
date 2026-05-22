@@ -317,12 +317,22 @@ def make_chart(df, setup, price):
 
 # ─── MAIN ────────────────────────────────────────────────────────────────────
 def main():
+    force = "--force" in sys.argv
     print(f"Fetching {SYMBOL} {TF}...")
     df = fetch_klines()
     price = fetch_price()
     print(f"  {len(df)} candles  |  current ${price:,.2f}")
 
     setup = detect_amd_short(df)
+
+    # Skip render if structure ยังไม่ก่อตัวพอที่จะวาด zone ได้ (--force เพื่อ override)
+    if not force:
+        if not setup or not setup.get("m_high") or not setup.get("mss_low"):
+            reason = "Asian session ยังไม่ปิด" if not (setup and setup.get("m_high")) else "M sweep แล้ว แต่ยังไม่มี MSS Low"
+            print(f"\n⏭  Skip chart — {reason}")
+            print(f"   ไม่มี structure ให้ mark — ใช้ --force ถ้าอยากดูแค่ candles")
+            return
+
     if setup:
         print(f"Asian: ${setup['asian_low']:,.0f} – ${setup['asian_high']:,.0f}")
         if setup.get("m_high"):
