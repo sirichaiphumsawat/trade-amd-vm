@@ -21,3 +21,8 @@ api_keys.txt
 *.log
 *.out.log
 *.err.log
+
+# Cloudflare Worker — wrangler cache + local state
+worker/.wrangler/
+worker/node_modules/
+worker/.dev.vars
