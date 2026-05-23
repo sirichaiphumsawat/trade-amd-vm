@@ -1,0 +1,12 @@
+name = "trade-amd-vm-bot"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+# Secrets to set via `wrangler secret put <NAME>`:
+#   TELEGRAM_BOT_TOKEN  — from BotFather
+#   TELEGRAM_CHAT_ID    — your private chat id (security gate)
+#   GITHUB_TOKEN        — fine-grained PAT, Actions: write on trade-amd-vm
+#   GITHUB_REPO         — "sirichaiphumsawat/trade-amd-vm"
+
+[observability.logs]
+enabled = true
