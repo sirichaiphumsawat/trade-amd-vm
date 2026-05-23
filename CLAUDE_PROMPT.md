@@ -15,8 +15,8 @@
 - amd_full.py, vm_backtest.py, chart_setup.py
 
 Account context:
-- Budget $100 USDT, per-trade margin $20-30 (midpoint $25), leverage 50x
-- Notional position ~$1,250, fee ~$1.25 round-trip
+- ผม trade crypto futures บน high leverage (50x+) — รายละเอียด budget/margin เก็บไว้ส่วนตัว
+- ถ้าผมบอก margin/budget ตอน chat ให้จำใน session แต่ห้ามเขียนลง repo
 
 Rules ที่ต้องจำ:
 1. fib_leg minimum = $150 (filter thin setups)

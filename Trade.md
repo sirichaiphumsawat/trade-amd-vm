@@ -126,11 +126,12 @@ TP3  800%      : $104,700 − $500 × 8.0 = $100,700   RR 1:33
 
 ## Position Sizing & Account
 
-- **Exchange**: Pionex Futures
-- **Budget**: $100 USDT
-- **Per-trade margin**: $20–30 USDT (midpoint $25)
-- **Leverage**: 50x → notional ~$1,250
-- **Round-trip fee (taker 0.05%)**: ~$1.25/trade
+- **Exchange**: Crypto futures (Binance/Bybit/Pionex/อื่นๆ)
+- **Per-trade margin**: ตามดุลพินิจ ขึ้นกับ budget ส่วนตัว
+- **Leverage**: ตามดุลพินิจ — strategy นี้ทดสอบบน high leverage (50x+)
+- **Fee**: 0.02–0.05% (taker) ขึ้นกับ exchange
+
+> Account-specific config (margin, budget, leverage) → เก็บเป็น private notes ไม่ commit
 
 ## Universal Rules
 
