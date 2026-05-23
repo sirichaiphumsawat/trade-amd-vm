@@ -26,7 +26,9 @@ AMD_SCRIPT   = HERE / "amd_full.py"
 VM_SCRIPT    = HERE / "vm_backtest.py"
 STATE_FILE   = HERE / "monitor_state.json"
 LOG_FILE     = HERE / "alerts_log.json"
+ACTIVE_FILE  = HERE / "active_trades.json"
 LOG_KEEP_DAYS = 90    # trim entries older than this
+TRADE_EXPIRE_HOURS = 24   # drop active trade if no hit in this window
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT  = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -221,6 +223,177 @@ def make_log_entry(strategy: str, data: dict) -> dict:
         "fib_leg":   data.get("fib_leg"),
         "signature": data.get("signature"),
     }
+
+
+# ─── ACTIVE TRADES (for SL/TP hit detection) ─────────────────────────────────
+def load_active() -> list:
+    if ACTIVE_FILE.exists():
+        try:
+            return json.loads(ACTIVE_FILE.read_text())
+        except Exception:
+            pass
+    return []
+
+
+def save_active(active: list):
+    ACTIVE_FILE.write_text(json.dumps(active, indent=2, ensure_ascii=False))
+
+
+def add_active(strategy: str, data: dict):
+    """Add a fresh alert to active_trades for SL/TP tracking."""
+    active = load_active()
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    active.append({
+        "signature":  data.get("signature"),
+        "strategy":   strategy,            # "AMD" or "VM"
+        "direction":  data.get("direction", "?"),
+        "entry":      data.get("entry"),
+        "sl":         data.get("sl"),
+        "tp1":        data.get("tp1"),
+        "tp2":        data.get("tp2"),
+        "tp3":        data.get("tp3"),
+        "sent_at":    now_iso,
+        "last_check": now_iso,
+        "tp1_hit":    False,
+        "tp2_hit":    False,
+        "tp3_hit":    False,
+        "sl_hit":     False,
+    })
+    save_active(active)
+
+
+def fetch_1m_range(since_ms: int):
+    """Fetch 1m BTC candles since timestamp, return list of (high, low, close_time)."""
+    url = (f"https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT"
+           f"&interval=1m&startTime={since_ms}&limit=500")
+    try:
+        data = json.loads(urllib.request.urlopen(url, timeout=10).read())
+        return [(float(c[2]), float(c[3]), int(c[6])) for c in data]   # high, low, close_time
+    except Exception as e:
+        print(f"1m fetch error: {e}")
+        return []
+
+
+# ─── HIT DETECTION ───────────────────────────────────────────────────────────
+def check_hits():
+    """Scan active trades for SL/TP hits. Send alerts + update state."""
+    active = load_active()
+    if not active:
+        return
+
+    now = datetime.now(timezone.utc)
+    survivors = []
+    sent_count = 0
+
+    for trade in active:
+        # Expire stale trades (no hit in TRADE_EXPIRE_HOURS)
+        sent_at = datetime.fromisoformat(trade["sent_at"].replace("Z", "+00:00"))
+        age_h = (now - sent_at).total_seconds() / 3600
+        if age_h > TRADE_EXPIRE_HOURS:
+            print(f"Expire trade: {trade['signature']} (age {age_h:.1f}h)")
+            continue
+
+        last_check = datetime.fromisoformat(trade["last_check"].replace("Z", "+00:00"))
+        since_ms = int(last_check.timestamp() * 1000) + 1   # +1ms to avoid re-checking same candle
+
+        candles = fetch_1m_range(since_ms)
+        if not candles:
+            survivors.append(trade)
+            continue
+
+        period_high = max(c[0] for c in candles)
+        period_low  = min(c[1] for c in candles)
+
+        direction = trade["direction"]
+        is_short = direction == "SHORT"
+
+        # Determine which levels were hit this period
+        hits = []
+
+        # SL hit: SHORT → high >= sl ;  LONG → low <= sl
+        if not trade["sl_hit"]:
+            sl_triggered = (period_high >= trade["sl"]) if is_short else (period_low <= trade["sl"])
+            if sl_triggered:
+                trade["sl_hit"] = True
+                hits.append(("SL", trade["sl"]))
+
+        # TPs: SHORT → low <= tp ;  LONG → high >= tp
+        for tp_key, tp_label in [("tp1", "TP1"), ("tp2", "TP2"), ("tp3", "TP3")]:
+            hit_flag = f"{tp_key}_hit"
+            if not trade[hit_flag]:
+                tp_price = trade[tp_key]
+                tp_triggered = (period_low <= tp_price) if is_short else (period_high >= tp_price)
+                if tp_triggered:
+                    trade[hit_flag] = True
+                    hits.append((tp_label, tp_price))
+
+        # Send alert per hit
+        for label, price in hits:
+            msg = format_hit_alert(trade, label, price)
+            if telegram_send(msg):
+                sent_count += 1
+                print(f"Hit alert sent: {trade['signature']} {label}")
+            else:
+                print(f"Hit alert FAILED: {trade['signature']} {label}")
+
+        # Update last_check; keep trade if not fully resolved
+        trade["last_check"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        fully_resolved = trade["sl_hit"] or trade["tp3_hit"]
+        if not fully_resolved:
+            survivors.append(trade)
+        else:
+            print(f"Trade resolved: {trade['signature']}")
+
+    save_active(survivors)
+    if sent_count:
+        print(f"Sent {sent_count} hit alert(s)")
+
+
+def format_hit_alert(trade: dict, label: str, hit_price: float) -> str:
+    """Build Telegram message for SL or TP hit."""
+    entry = trade["entry"]
+    direction = trade["direction"]
+    strat = trade["strategy"]
+    is_short = direction == "SHORT"
+    is_sl = label == "SL"
+
+    pnl = (entry - hit_price) if is_short else (hit_price - entry)
+    pnl_pct = (pnl / entry) * 100
+
+    risk = abs(entry - trade["sl"])
+    reward = abs(hit_price - entry)
+    rr = reward / risk if risk > 0 else 0
+    rr_sign = "-" if is_sl else "+"
+
+    if is_sl:
+        header = f"❌ *SL HIT* — {strat} {direction}"
+        result = "Trade closed (loss)"
+    else:
+        # Show what's left
+        remaining = []
+        for tp_key, tp_label in [("tp1", "TP1"), ("tp2", "TP2"), ("tp3", "TP3")]:
+            if not trade[f"{tp_key}_hit"]:
+                remaining.append(f"{tp_label} ${trade[tp_key]:,.0f}")
+        if remaining:
+            result = f"Active: {' · '.join(remaining)}"
+        else:
+            result = "🎯 *TP3 HIT — Trade complete*"
+        header = f"✅ *{label} HIT* — {strat} {direction}"
+
+    time_line = _now_utc_th()
+    body = (
+        f"Hit     ${hit_price:,.0f}\n"
+        f"Entry   ${entry:,.0f}\n"
+        f"P&L     {'+' if pnl >= 0 else ''}{pnl:,.0f}  ({'+' if pnl_pct >= 0 else ''}{pnl_pct:.2f}%)\n"
+        f"RR      {rr_sign}1:{rr:.1f}"
+    )
+
+    return (
+        f"{header}\n"
+        f"BTCUSDT · {time_line}\n\n"
+        f"```\n{body}\n```\n"
+        f"{result}"
+    )
 
 
 # ─── CHECKERS ────────────────────────────────────────────────────────────────
@@ -428,6 +601,7 @@ def main():
         if send_alert(msg, chart):
             state["last_amd_sig"] = amd["signature"]
             append_log(make_log_entry("AMD", amd))
+            add_active("AMD", amd)
             new_alerts.append(f"AMD {amd['direction']}{' +chart' if chart else ''}")
 
     # V+M — chart attached when structure data is available
@@ -438,6 +612,7 @@ def main():
         if send_alert(msg, chart):
             state["last_vm_sig"] = vm["signature"]
             append_log(make_log_entry("VM", vm))
+            add_active("VM", vm)
             new_alerts.append(f"V+M LONG{' +chart' if chart else ''}")
 
     if new_alerts:
@@ -445,6 +620,10 @@ def main():
         print(f"Sent alerts: {', '.join(new_alerts)}")
     else:
         print("No new setup (or filtered out)")
+
+    # Scan active trades for SL/TP hits (independent of new alerts)
+    check_hits()
+
     sys.exit(0)
 
 

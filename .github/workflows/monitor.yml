@@ -40,16 +40,17 @@ jobs:
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python monitor_ci.py
 
-      - name: Commit state + alerts log if changed
+      - name: Commit state + log + active trades if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           changed=""
           [ -n "$(git status --porcelain monitor_state.json)" ] && changed="$changed monitor_state.json"
-          [ -n "$(git status --porcelain alerts_log.json)"  ] && changed="$changed alerts_log.json"
+          [ -n "$(git status --porcelain alerts_log.json)"  ]   && changed="$changed alerts_log.json"
+          [ -n "$(git status --porcelain active_trades.json)" ] && changed="$changed active_trades.json"
           if [ -n "$changed" ]; then
             git add $changed
-            git commit -m "Update monitor state + log [skip ci]"
+            git commit -m "Update monitor state + log + active trades [skip ci]"
             git push
           else
             echo "No state changes to commit"
