@@ -11,6 +11,7 @@ Usage:
 
 import urllib.request
 import json
+import os
 import sys
 import subprocess
 from datetime import datetime, timezone
@@ -28,7 +29,8 @@ LEG_CANDLES     = 16          # MSS search window after M
 RETRACE_LO      = 0.35        # bounce zone low
 RETRACE_HI      = 0.65        # bounce zone high
 FIB_LEG_MIN     = 150         # USD
-OUTPUT_PATH     = "/tmp/btc_amd_chart.png"
+OUTPUT_DIR      = os.path.expanduser("~/Documents/btc_charts")
+LATEST_LINK     = os.path.join(OUTPUT_DIR, "latest.png")
 
 # Colors — dark theme (TradingView Pro inspired)
 BG              = "#0f1116"   # near-black background
@@ -310,9 +312,19 @@ def make_chart(df, setup, price):
     title = f"AMD SHORT  |  {SYMBOL} {TF}  |  {now_utc}  |  fib_leg ${fib_leg_val:,.0f} {fib_status}"
     ax.set_title(title, fontsize=11, color=TEXT, loc="left", pad=10)
 
-    plt.savefig(OUTPUT_PATH, dpi=140, facecolor=BG, bbox_inches="tight")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+    fname = f"btc_amd_{stamp}.png"
+    out_path = os.path.join(OUTPUT_DIR, fname)
+    plt.savefig(out_path, dpi=140, facecolor=BG, bbox_inches="tight")
     plt.close(fig)
-    return OUTPUT_PATH
+
+    # Update "latest" symlink for quick access
+    if os.path.lexists(LATEST_LINK):
+        os.remove(LATEST_LINK)
+    os.symlink(fname, LATEST_LINK)
+
+    return out_path
 
 
 # ─── MAIN ────────────────────────────────────────────────────────────────────
