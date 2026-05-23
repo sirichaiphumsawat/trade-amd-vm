@@ -25,6 +25,8 @@ HERE         = Path(__file__).resolve().parent
 AMD_SCRIPT   = HERE / "amd_full.py"
 VM_SCRIPT    = HERE / "vm_backtest.py"
 STATE_FILE   = HERE / "monitor_state.json"
+LOG_FILE     = HERE / "alerts_log.json"
+LOG_KEEP_DAYS = 90    # trim entries older than this
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT  = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -175,6 +177,50 @@ def load_state() -> dict:
 
 def save_state(state: dict):
     STATE_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=False))
+
+
+def load_log() -> list:
+    if LOG_FILE.exists():
+        try:
+            return json.loads(LOG_FILE.read_text())
+        except Exception:
+            pass
+    return []
+
+
+def append_log(entry: dict):
+    """Append alert entry to alerts_log.json + trim old entries."""
+    log = load_log()
+    log.append(entry)
+
+    # Trim entries older than LOG_KEEP_DAYS
+    cutoff = datetime.now(timezone.utc) - timedelta(days=LOG_KEEP_DAYS)
+    fresh = []
+    for e in log:
+        try:
+            ts = datetime.fromisoformat(e["ts"].replace("Z", "+00:00"))
+            if ts >= cutoff:
+                fresh.append(e)
+        except Exception:
+            fresh.append(e)   # keep if we can't parse (don't lose data)
+
+    LOG_FILE.write_text(json.dumps(fresh, indent=2, ensure_ascii=False))
+
+
+def make_log_entry(strategy: str, data: dict) -> dict:
+    """Build alert log entry from check_amd/check_vm output."""
+    return {
+        "ts":        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "strategy":  strategy,             # "AMD" or "VM"
+        "direction": data.get("direction", "?"),
+        "entry":     data.get("entry"),
+        "sl":        data.get("sl"),
+        "tp1":       data.get("tp1"),
+        "tp2":       data.get("tp2"),
+        "tp3":       data.get("tp3"),
+        "fib_leg":   data.get("fib_leg"),
+        "signature": data.get("signature"),
+    }
 
 
 # ─── CHECKERS ────────────────────────────────────────────────────────────────
@@ -381,6 +427,7 @@ def main():
         chart = try_build_amd_chart() if amd["direction"] == "SHORT" else None
         if send_alert(msg, chart):
             state["last_amd_sig"] = amd["signature"]
+            append_log(make_log_entry("AMD", amd))
             new_alerts.append(f"AMD {amd['direction']}{' +chart' if chart else ''}")
 
     # V+M — chart attached when structure data is available
@@ -390,6 +437,7 @@ def main():
         chart = try_build_vm_chart(vm)
         if send_alert(msg, chart):
             state["last_vm_sig"] = vm["signature"]
+            append_log(make_log_entry("VM", vm))
             new_alerts.append(f"V+M LONG{' +chart' if chart else ''}")
 
     if new_alerts:

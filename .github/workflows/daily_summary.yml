@@ -1,0 +1,31 @@
+name: Daily Summary
+
+on:
+  schedule:
+    - cron: "0 0 * * *"      # 00:00 UTC = 07:00 ไทย (morning brief)
+  workflow_dispatch:           # allow manual trigger for testing
+
+permissions:
+  contents: read               # only reads alerts_log.json from repo
+
+concurrency:
+  group: daily-summary
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run daily summary
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python daily_summary.py
