@@ -137,7 +137,7 @@ def detect_amd_short(df):
 
 
 # ─── PLOT ────────────────────────────────────────────────────────────────────
-def make_chart(df, setup, price):
+def make_chart(df, setup, price, output_path=None):
     plot_df = df.tail(LOOKBACK).copy()
 
     mc = mpf.make_marketcolors(
@@ -312,6 +312,14 @@ def make_chart(df, setup, price):
     title = f"AMD SHORT  |  {SYMBOL} {TF}  |  {now_utc}  |  fib_leg ${fib_leg_val:,.0f} {fib_status}"
     ax.set_title(title, fontsize=11, color=TEXT, loc="left", pad=10)
 
+    if output_path:
+        # Custom path (e.g. /tmp/chart.png for Telegram) — no symlink, no dir mgmt
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        plt.savefig(output_path, dpi=140, facecolor=BG, bbox_inches="tight")
+        plt.close(fig)
+        return output_path
+
+    # Default: write to ~/Documents/btc_charts/ + maintain "latest" symlink
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
     fname = f"btc_amd_{stamp}.png"
@@ -319,12 +327,33 @@ def make_chart(df, setup, price):
     plt.savefig(out_path, dpi=140, facecolor=BG, bbox_inches="tight")
     plt.close(fig)
 
-    # Update "latest" symlink for quick access
     if os.path.lexists(LATEST_LINK):
         os.remove(LATEST_LINK)
     os.symlink(fname, LATEST_LINK)
 
     return out_path
+
+
+# ─── LIBRARY API (used by monitor_ci.py) ─────────────────────────────────────
+def build_amd_short_chart(output_path=None):
+    """
+    Generate AMD SHORT chart and return path.
+
+    Args:
+        output_path: full path to write PNG (e.g. /tmp/chart.png).
+                     If None → use default OUTPUT_DIR/btc_amd_<stamp>.png
+
+    Returns:
+        path to chart on success, None if structure not ready.
+    """
+    df = fetch_klines()
+    price = fetch_price()
+    setup = detect_amd_short(df)
+
+    if not setup or not setup.get("m_high") or not setup.get("mss_low"):
+        return None
+
+    return make_chart(df, setup, price, output_path=output_path)
 
 
 # ─── MAIN ────────────────────────────────────────────────────────────────────

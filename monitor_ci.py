@@ -65,6 +65,64 @@ def telegram_send(text: str) -> bool:
         return False
 
 
+def telegram_send_photo(photo_path: str, caption: str) -> bool:
+    """Send photo with caption via multipart/form-data POST."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT:
+        print("ERROR: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing")
+        return False
+    if not os.path.exists(photo_path):
+        print(f"ERROR: photo not found: {photo_path}")
+        return False
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    boundary = "----TgBoundary" + datetime.now().strftime("%Y%m%d%H%M%S%f")
+    crlf = b"\r\n"
+
+    with open(photo_path, "rb") as f:
+        photo_bytes = f.read()
+
+    parts = []
+    # chat_id
+    parts.append(f"--{boundary}".encode())
+    parts.append(b'Content-Disposition: form-data; name="chat_id"')
+    parts.append(b"")
+    parts.append(TELEGRAM_CHAT.encode())
+    # caption
+    parts.append(f"--{boundary}".encode())
+    parts.append(b'Content-Disposition: form-data; name="caption"')
+    parts.append(b"")
+    parts.append(caption.encode("utf-8"))
+    # parse_mode
+    parts.append(f"--{boundary}".encode())
+    parts.append(b'Content-Disposition: form-data; name="parse_mode"')
+    parts.append(b"")
+    parts.append(b"Markdown")
+    # photo
+    parts.append(f"--{boundary}".encode())
+    parts.append(b'Content-Disposition: form-data; name="photo"; filename="chart.png"')
+    parts.append(b"Content-Type: image/png")
+    parts.append(b"")
+    parts.append(photo_bytes)
+    parts.append(f"--{boundary}--".encode())
+    parts.append(b"")
+
+    body = crlf.join(parts)
+    req = urllib.request.Request(
+        url, data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = json.loads(r.read())
+            if not resp.get("ok"):
+                print(f"Telegram sendPhoto error: {resp}")
+                return False
+            return True
+    except Exception as e:
+        print(f"Telegram photo send error: {e}")
+        return False
+
+
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 def _clean_num(s: str) -> float:
     return float(s.replace(",", "").replace("$", ""))
@@ -264,20 +322,45 @@ def format_alert(strategy: str, data: dict) -> str:
     return f"{header}\n{tag} · {time_line}\n\n```\n{body}\n```"
 
 
+# ─── CHART ATTACHMENT ────────────────────────────────────────────────────────
+def try_build_amd_chart():
+    """Try to generate AMD chart for Telegram. Returns path or None."""
+    try:
+        import chart_setup
+        path = chart_setup.build_amd_short_chart("/tmp/btc_amd_alert.png")
+        if path and os.path.exists(path):
+            print(f"Chart built: {path} ({os.path.getsize(path):,} bytes)")
+            return path
+    except Exception as e:
+        print(f"Chart build failed (non-fatal): {e}")
+    return None
+
+
+def send_alert(text: str, chart_path=None) -> bool:
+    """Send alert with chart if available, fall back to text."""
+    if chart_path:
+        # Telegram caption limit is 1024 chars — our format is ~500, safe
+        if telegram_send_photo(chart_path, text):
+            return True
+        print("Photo send failed, falling back to text-only")
+    return telegram_send(text)
+
+
 # ─── MAIN ────────────────────────────────────────────────────────────────────
 def main():
     state = load_state()
     new_alerts = []
 
-    # AMD
+    # AMD — generate chart (SHORT only for now; LONG uses text)
     amd = check_amd()
     if amd and amd["signature"] != state.get("last_amd_sig"):
         msg = format_alert("AMD", amd)
-        if telegram_send(msg):
+        chart = try_build_amd_chart() if amd["direction"] == "SHORT" else None
+        if send_alert(msg, chart):
             state["last_amd_sig"] = amd["signature"]
-            new_alerts.append(f"AMD {amd['direction']}")
+            new_alerts.append(f"AMD {amd['direction']}{' +chart' if chart else ''}")
 
-    # V+M
+    # V+M — text only (VM chart not built yet)
     vm = check_vm()
     if vm and vm["signature"] != state.get("last_vm_sig"):
         msg = format_alert("VM", vm)
