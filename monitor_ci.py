@@ -245,6 +245,11 @@ def check_vm():
     tp3_match = re.search(r"TP3 800%\s*:\s*\$?([\d,]+\.?\d*)", out)
     fib_match = re.search(r"fib_leg\s*:\s*\$?([\d,]+\.?\d*)", out)
 
+    # Structure data for chart (optional — chart will skip if missing)
+    vlow_match = re.search(r"V bottom\s*:\s*\$?([\d,]+\.?\d*)", out)
+    neck_match = re.search(r"Neckline\s*:\s*\$?([\d,]+\.?\d*)", out)
+    wlow_match = re.search(r"W low\s*:\s*\$?([\d,]+\.?\d*)", out)
+
     if not (entry_match and sl_match and tp1_match and tp2_match and tp3_match and fib_match):
         return None
 
@@ -274,6 +279,10 @@ def check_vm():
         "tp1":       _clean_num(tp1_match.group(1)),
         "tp2":       _clean_num(tp2_match.group(1)),
         "tp3":       _clean_num(tp3_match.group(1)),
+        # Structure (for chart) — may be None if vm_backtest output changed
+        "v_low":     _clean_num(vlow_match.group(1)) if vlow_match else None,
+        "neckline":  _clean_num(neck_match.group(1)) if neck_match else None,
+        "w_low":     _clean_num(wlow_match.group(1)) if wlow_match else None,
     }
 
 
@@ -329,10 +338,24 @@ def try_build_amd_chart():
         import chart_setup
         path = chart_setup.build_amd_short_chart("/tmp/btc_amd_alert.png")
         if path and os.path.exists(path):
-            print(f"Chart built: {path} ({os.path.getsize(path):,} bytes)")
+            print(f"AMD chart built: {path} ({os.path.getsize(path):,} bytes)")
             return path
     except Exception as e:
-        print(f"Chart build failed (non-fatal): {e}")
+        print(f"AMD chart build failed (non-fatal): {e}")
+    return None
+
+
+def try_build_vm_chart(signal):
+    """Try to generate VM chart for Telegram. Returns path or None."""
+    try:
+        import chart_setup
+        path = chart_setup.build_vm_long_chart(signal, "/tmp/btc_vm_alert.png")
+        if path and os.path.exists(path):
+            print(f"VM chart built: {path} ({os.path.getsize(path):,} bytes)")
+            return path
+        print("VM chart skipped — missing structure data")
+    except Exception as e:
+        print(f"VM chart build failed (non-fatal): {e}")
     return None
 
 
@@ -360,13 +383,14 @@ def main():
             state["last_amd_sig"] = amd["signature"]
             new_alerts.append(f"AMD {amd['direction']}{' +chart' if chart else ''}")
 
-    # V+M — text only (VM chart not built yet)
+    # V+M — chart attached when structure data is available
     vm = check_vm()
     if vm and vm["signature"] != state.get("last_vm_sig"):
         msg = format_alert("VM", vm)
-        if telegram_send(msg):
+        chart = try_build_vm_chart(vm)
+        if send_alert(msg, chart):
             state["last_vm_sig"] = vm["signature"]
-            new_alerts.append("V+M LONG")
+            new_alerts.append(f"V+M LONG{' +chart' if chart else ''}")
 
     if new_alerts:
         save_state(state)

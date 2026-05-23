@@ -356,6 +356,181 @@ def build_amd_short_chart(output_path=None):
     return make_chart(df, setup, price, output_path=output_path)
 
 
+# ─── VM LONG CHART ───────────────────────────────────────────────────────────
+def build_vm_long_chart(signal, output_path=None):
+    """
+    Generate V+M LONG chart from a pre-detected signal.
+
+    Args:
+        signal: dict with at least neckline, v_low, w_low, entry, sl, tp1/2/3.
+                Must come from monitor_ci.check_vm() output.
+        output_path: full path to write PNG, or None for default dir.
+
+    Returns:
+        path to chart on success, None if signal incomplete.
+    """
+    required = ("neckline", "v_low", "w_low", "entry", "sl", "tp1", "tp2", "tp3")
+    if not all(signal.get(k) is not None for k in required):
+        return None
+
+    df = fetch_klines()
+    price = fetch_price()
+    return _render_vm_chart(df, signal, price, output_path)
+
+
+def _render_vm_chart(df, sig, price, output_path):
+    """Render V+M structure: V bottom + neckline + W Higher Low + entry/SL/TPs."""
+    plot_df = df.tail(LOOKBACK).copy()
+
+    mc = mpf.make_marketcolors(
+        up=BODY_UP, down=BODY_DN,
+        edge={"up": WICK_UP, "down": WICK_DN},
+        wick={"up": WICK_UP, "down": WICK_DN},
+        ohlc="inherit",
+    )
+    s = mpf.make_mpf_style(
+        base_mpf_style="charles", marketcolors=mc,
+        facecolor=BG, figcolor=BG, edgecolor=GRID,
+        gridcolor=GRID, gridstyle=":",
+        rc={"axes.labelcolor": TEXT, "axes.edgecolor": GRID,
+            "xtick.color": TEXT_DIM, "ytick.color": TEXT_DIM,
+            "axes.facecolor": BG},
+    )
+
+    fig, axes = mpf.plot(
+        plot_df, type="candle", style=s, returnfig=True,
+        figsize=(14, 9), ylabel="", xrotation=0,
+        datetime_format="%H:%M", tight_layout=False,
+    )
+    ax = axes[0]
+
+    # Right-side padding for labels
+    x_lo, x_hi = ax.get_xlim()
+    pad = (x_hi - x_lo) * 0.12
+    ax.set_xlim(x_lo, x_hi + pad)
+    label_x = x_hi + pad * 0.55
+
+    neckline = sig["neckline"]
+    v_low    = sig["v_low"]
+    w_low    = sig["w_low"]
+    entry    = sig["entry"]
+    sl       = sig["sl"]
+    tp1, tp2, tp3 = sig["tp1"], sig["tp2"], sig["tp3"]
+
+    # Find V bottom and W low positions in plot_df (closest match)
+    def find_x(price_target, window):
+        """Find x-index of candle whose low is closest to price_target."""
+        diffs = (plot_df["low"] - price_target).abs()
+        idx = diffs.idxmin()
+        return plot_df.index.get_loc(idx)
+
+    v_x = find_x(v_low, plot_df)
+    w_x = find_x(w_low, plot_df)
+
+    # Neckline horizontal line (key level)
+    ax.axhline(neckline, color=ENTRY_COLOR, linestyle="--",
+               linewidth=1.4, alpha=0.85, zorder=2)
+    ax.text(label_x, neckline,
+            f"Neck ${neckline:,.0f}",
+            fontsize=9, color="#0f1116", va="center", ha="left", fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor=ENTRY_COLOR, edgecolor="none"))
+
+    # V bottom marker (deep low — red v)
+    ax.scatter([v_x], [v_low], marker="v", s=80,
+               color=SL_COLOR, zorder=5)
+    ax.annotate(f"V  ${v_low:,.0f}",
+                xy=(v_x, v_low),
+                xytext=(v_x - 6, v_low - 60),
+                fontsize=9, color=SL_COLOR, fontweight="bold")
+
+    # W Higher Low marker (green ^ — bullish confirmation)
+    ax.scatter([w_x], [w_low], marker="^", s=80,
+               color=TP_COLOR, zorder=5)
+    ax.annotate(f"W (HL)  ${w_low:,.0f}",
+                xy=(w_x, w_low),
+                xytext=(w_x - 6, w_low - 60),
+                fontsize=9, color=TP_COLOR, fontweight="bold")
+
+    # Connect V → W with dashed line (shows Higher Low structure)
+    ax.plot([v_x, w_x], [v_low, w_low],
+            linestyle="--", color=TEXT_DIM, linewidth=1, alpha=0.5, zorder=1)
+
+    # Entry zone (band ±30 around entry, just above neckline)
+    last_x = len(plot_df) - 1
+    ent_band = 30
+    ax.add_patch(patches.Rectangle(
+        (w_x, entry - ent_band),
+        (last_x + 3) - w_x,
+        ent_band * 2,
+        facecolor=ENTRY_COLOR, alpha=0.35, edgecolor="none", zorder=2,
+    ))
+    ax.text(label_x, entry,
+            f"Entry ${entry:,.0f}",
+            fontsize=9, color="#0f1116", va="center", ha="left", fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor=ENTRY_COLOR, edgecolor="none"))
+
+    # SL line (red)
+    ax.axhline(sl, color=SL_COLOR, linestyle=":", linewidth=1, alpha=0.7, zorder=1)
+    ax.text(label_x, sl,
+            f"SL ${sl:,.0f}",
+            fontsize=8, color=SL_COLOR, va="center", ha="left", fontweight="bold")
+
+    # Current price marker
+    ax.axhline(price, color=TEXT, linestyle="-",
+               linewidth=0.6, alpha=0.4, zorder=1)
+    ax.text(label_x, price, f"${price:,.1f}",
+            fontsize=10, color="#0f1116", va="center", ha="left", fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor=TEXT, edgecolor="none"))
+
+    # Projection: current price → up through neckline → toward TP1
+    last_close = plot_df["close"].iloc[-1]
+    target_y = entry + (tp1 - entry) * 0.4  # partial path toward TP1
+    proj_x = [last_x, last_x + 3, last_x + 6]
+    proj_y = [last_close, neckline + 20, target_y]
+    ax.plot(proj_x, proj_y, linestyle=":", color=TP_COLOR,
+            linewidth=1.5, alpha=0.7, zorder=3)
+
+    # Zoom y to action area (don't let TP3 stretch it)
+    visible_hi = max(plot_df["high"].max(), neckline, entry)
+    visible_lo = min(plot_df["low"].min(), v_low, sl)
+    pad_y = (visible_hi - visible_lo) * 0.18
+    ax.set_ylim(visible_lo - pad_y, visible_hi + pad_y)
+
+    # TP labels in box (lower right, outside main action zone)
+    y_lo, y_hi = ax.get_ylim()
+    tp_summary = [
+        f"TP1 ${tp1:,.0f}",
+        f"TP2 ${tp2:,.0f}",
+        f"TP3 ${tp3:,.0f}",
+    ]
+    ax.text(label_x, y_hi - (y_hi - y_lo) * 0.06,
+            "\n".join(tp_summary), fontsize=9, color=TP_COLOR,
+            va="top", ha="left", fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.4", facecolor="#162820",
+                      edgecolor=TP_COLOR, linewidth=0.8))
+
+    # Title
+    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    fib_leg = sig.get("fib_leg", neckline - w_low)
+    title = (f"V+M LONG  |  {SYMBOL} {TF}  |  {now_utc}  |  "
+             f"fib_leg ${fib_leg:,.0f} ✓")
+    ax.set_title(title, fontsize=11, color=TEXT, loc="left", pad=10)
+
+    if output_path:
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        plt.savefig(output_path, dpi=140, facecolor=BG, bbox_inches="tight")
+        plt.close(fig)
+        return output_path
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+    fname = f"btc_vm_{stamp}.png"
+    out_path = os.path.join(OUTPUT_DIR, fname)
+    plt.savefig(out_path, dpi=140, facecolor=BG, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
 # ─── MAIN ────────────────────────────────────────────────────────────────────
 def main():
     force = "--force" in sys.argv
