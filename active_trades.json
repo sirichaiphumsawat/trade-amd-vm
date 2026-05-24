@@ -9,8 +9,8 @@
     "tp2": 75500.0,
     "tp3": 74000.0,
     "sent_at": "2026-05-24T13:52:17Z",
-    "last_check": "2026-05-24T13:52:17Z",
-    "tp1_hit": false,
+    "last_check": "2026-05-24T14:19:45Z",
+    "tp1_hit": true,
     "tp2_hit": false,
     "tp3_hit": false,
     "sl_hit": false
