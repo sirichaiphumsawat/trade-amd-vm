@@ -74,6 +74,15 @@ export default {
       return;
     }
 
+    // Note: external dead-man's switch (healthchecks.io / uptimerobot) skipped —
+    // CF cron + internal heartbeat already gives ~99% reliability.
+    // If you want true independent verification later, set HEALTHCHECK_URL secret
+    // and uncomment the ping below.
+    //
+    // if (dispatchOk && env.HEALTHCHECK_URL) {
+    //   try { await fetch(env.HEALTHCHECK_URL); } catch (e) { console.error(e); }
+    // }
+
     // 2) Heartbeat watchdog — check last GH run age
     try {
       const runsUrl = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/monitor.yml/runs?per_page=1`;
