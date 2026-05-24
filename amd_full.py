@@ -42,27 +42,45 @@ CACHE_TTL_H = 4
 MAX_RETRIES = 3
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Geo-block fallback chain for GH Actions runners.
-# Some GH IPs are blocked from BOTH fapi.binance.com AND api.binance.com (HTTP 451).
-# Bybit is not geo-restricted and has near-identical BTC perp data (basis points
-# difference, irrelevant for setup detection on BTC).
+class _BinanceDataAPI:
+    """Drop-in replacement for ccxt exchange using data-api.binance.vision —
+    Binance's public market data endpoint, NOT geo-blocked from GH runners.
+    Implements only fetch_ohlcv (the only ccxt method we use)."""
+    def load_markets(self):
+        return {}
+    def fetch_ohlcv(self, symbol, timeframe, since=None, limit=1000):
+        import json as _json, urllib.request as _ur
+        sym = symbol.replace('/', '').replace(':USDT', '')   # BTC/USDT:USDT → BTCUSDT
+        url = f"https://data-api.binance.vision/api/v3/klines?symbol={sym}&interval={timeframe}&limit={min(limit,1000)}"
+        if since:
+            url += f"&startTime={since}"
+        data = _json.loads(_ur.urlopen(url, timeout=15).read())
+        return [[int(c[0]), float(c[1]), float(c[2]), float(c[3]), float(c[4]), float(c[5])] for c in data]
+
+# Geo-block fallback chain (some GH Actions runner IPs are blocked from many exchanges):
+#   1. binanceusdm   ← preferred (matches Pionex pricing)
+#   2. binance       ← Binance spot
+#   3. bybit         ← different infra
+#   4. data-vision   ← Binance PUBLIC data endpoint (last resort, no auth/no markets)
+# For BTC, prices diff < 0.1% across these = irrelevant for our setup detection.
 def _make_exchange():
     candidates = [
-        ('binanceusdm', 'BTC/USDT:USDT'),   # preferred (matches Pionex)
-        ('binance',     'BTC/USDT'),        # Binance spot fallback
-        ('bybit',       'BTC/USDT:USDT'),   # 3rd-tier fallback (different infra)
+        ('binanceusdm', 'BTC/USDT:USDT', lambda: ccxt.binanceusdm({'enableRateLimit': True})),
+        ('binance',     'BTC/USDT',      lambda: ccxt.binance({'enableRateLimit': True})),
+        ('bybit',       'BTC/USDT:USDT', lambda: ccxt.bybit({'enableRateLimit': True})),
+        ('data-vision', 'BTCUSDT',       lambda: _BinanceDataAPI()),
     ]
     last_err = None
-    for ex_name, symbol in candidates:
+    for ex_name, symbol, factory in candidates:
         try:
-            ex = getattr(ccxt, ex_name)({'enableRateLimit': True})
+            ex = factory()
             ex.load_markets()
             if ex_name != 'binanceusdm':
                 print(f'[fallback] using {ex_name} ({symbol})', flush=True)
             return ex, symbol
         except Exception as e:
             last_err = e
-            if '451' in str(e) or 'restricted' in str(e).lower():
+            if any(s in str(e) for s in ['451', '403']) or 'restricted' in str(e).lower() or 'forbidden' in str(e).lower():
                 continue
             raise
     raise RuntimeError(f'All exchanges failed. Last error: {last_err}')
