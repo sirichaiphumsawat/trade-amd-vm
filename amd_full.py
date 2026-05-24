@@ -42,19 +42,32 @@ CACHE_TTL_H = 4
 MAX_RETRIES = 3
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Geo-block fallback: many GH Actions runner IPs are blocked from
-# fapi.binance.com (HTTP 451). Try futures first; fall back to spot
-# (BTC/USDT) — price diff is basis points, negligible for our setup detection.
-try:
-    _ex = ccxt.binanceusdm({'enableRateLimit': True})
-    _ex.load_markets()
-except Exception as _e:
-    if '451' in str(_e) or 'restricted' in str(_e).lower():
-        print('[geo-block] fapi blocked, falling back to Binance Spot', flush=True)
-        SYMBOL = 'BTC/USDT'
-        _ex = ccxt.binance({'enableRateLimit': True})
-    else:
-        raise
+# Geo-block fallback chain for GH Actions runners.
+# Some GH IPs are blocked from BOTH fapi.binance.com AND api.binance.com (HTTP 451).
+# Bybit is not geo-restricted and has near-identical BTC perp data (basis points
+# difference, irrelevant for setup detection on BTC).
+def _make_exchange():
+    candidates = [
+        ('binanceusdm', 'BTC/USDT:USDT'),   # preferred (matches Pionex)
+        ('binance',     'BTC/USDT'),        # Binance spot fallback
+        ('bybit',       'BTC/USDT:USDT'),   # 3rd-tier fallback (different infra)
+    ]
+    last_err = None
+    for ex_name, symbol in candidates:
+        try:
+            ex = getattr(ccxt, ex_name)({'enableRateLimit': True})
+            ex.load_markets()
+            if ex_name != 'binanceusdm':
+                print(f'[fallback] using {ex_name} ({symbol})', flush=True)
+            return ex, symbol
+        except Exception as e:
+            last_err = e
+            if '451' in str(e) or 'restricted' in str(e).lower():
+                continue
+            raise
+    raise RuntimeError(f'All exchanges failed. Last error: {last_err}')
+
+_ex, SYMBOL = _make_exchange()
 
 
 # ─── DATA FETCH ──────────────────────────────────────────────────────────────
