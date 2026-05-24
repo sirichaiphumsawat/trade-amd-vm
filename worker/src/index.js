@@ -237,73 +237,104 @@ async function cmdCheck(env) {
 
 
 async function cmdStatus(env) {
+  // Build status with maximum defense against Markdown parse failures.
+  // Underscores in dynamic values (e.g. "in_progress") would break Markdown
+  // and cause silent message failure — wrap all dynamic strings in backticks.
+
+  const lines = ['*Monitor Status*', ''];
+
   // 1) Latest workflow run
-  let runInfo = '_ไม่สามารถดึง workflow status_';
+  let runLine = '`ไม่สามารถดึง workflow status`';
   if (env.GITHUB_REPO) {
-    const url = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/monitor.yml/runs?per_page=1`;
     try {
+      const url = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/monitor.yml/runs?per_page=1`;
       const r = await fetch(url, {
         headers: {
           'Accept': 'application/vnd.github+json',
           'User-Agent': 'trade-amd-vm-bot',
         },
       });
+      console.log(`Status: GH workflow_runs HTTP ${r.status}`);
       if (r.ok) {
         const d = await r.json();
         const run = d.workflow_runs && d.workflow_runs[0];
         if (run) {
-          const status = run.status === 'completed' ? run.conclusion : run.status;
-          const icon = status === 'success' ? '✅' : (status === 'in_progress' ? '⏳' : '❌');
-          const when = new Date(run.created_at);
-          const ageMin = Math.round((Date.now() - when.getTime()) / 60000);
-          runInfo = `${icon} last run: ${ageMin} min ago (${status})`;
+          const rawStatus = run.status === 'completed' ? run.conclusion : run.status;
+          const icon = rawStatus === 'success' ? '✅'
+                     : (rawStatus === 'in_progress' || rawStatus === 'queued') ? '⏳'
+                     : '❌';
+          const ageMin = Math.round((Date.now() - new Date(run.created_at).getTime()) / 60000);
+          // Backtick the status to neutralize any underscores
+          runLine = `${icon} last run: ${ageMin} min ago (\`${rawStatus}\`)`;
+        } else {
+          runLine = '`no workflow runs found`';
         }
+      } else {
+        runLine = `\`GH API HTTP ${r.status}\``;
       }
     } catch (e) {
-      runInfo = `_workflow API error: ${e.message}_`;
+      console.log(`Status: workflow_runs error: ${e.message}`);
+      runLine = `\`workflow error: ${e.message}\``;
     }
   }
+  lines.push(runLine);
+  lines.push('');
 
-  // 2) Last alert from monitor_state.json
-  let stateInfo = '_ยังไม่มี alert ที่บันทึก_';
+  // 2) Last alert from monitor_state.json (may be 404 if no alerts yet — that's fine)
+  lines.push('*Last Alerts:*');
+  let alertLine = '_ยังไม่มี alert ที่บันทึก_';
   if (env.GITHUB_REPO) {
-    const url = `https://raw.githubusercontent.com/${env.GITHUB_REPO}/master/monitor_state.json`;
     try {
+      const url = `https://raw.githubusercontent.com/${env.GITHUB_REPO}/master/monitor_state.json`;
       const r = await fetch(url, { cf: { cacheTtl: 30 } });
+      console.log(`Status: state file HTTP ${r.status}`);
       if (r.ok) {
         const state = await r.json();
-        const lines = [];
-        if (state.last_amd_sig) lines.push(`AMD: \`${state.last_amd_sig}\``);
-        if (state.last_vm_sig) lines.push(`V+M: \`${state.last_vm_sig}\``);
-        if (lines.length) stateInfo = lines.join('\n');
+        const lst = [];
+        if (state.last_amd_sig) lst.push(`AMD: \`${state.last_amd_sig}\``);
+        if (state.last_vm_sig) lst.push(`V+M: \`${state.last_vm_sig}\``);
+        if (lst.length) alertLine = lst.join('\n');
       }
     } catch (e) {
-      stateInfo = `_state read error: ${e.message}_`;
+      console.log(`Status: state read error: ${e.message}`);
+      alertLine = `\`state error: ${e.message}\``;
     }
   }
+  lines.push(alertLine);
 
-  return [
-    '*Monitor Status*',
-    '',
-    runInfo,
-    '',
-    '*Last Alerts:*',
-    stateInfo,
-  ].join('\n');
+  const result = lines.join('\n');
+  console.log(`Status reply length: ${result.length}`);
+  return result;
 }
 
 
 // ─── TELEGRAM API ─────────────────────────────────────────────────────────
 
 async function sendMessage(token, chatId, text) {
+  console.log(`sendMessage: chat=${chatId}, len=${text.length}, hasToken=${!!token}`);
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  await fetch(url, {
+  let r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: 'Markdown',
-    }),
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),
   });
+  // Telegram returns HTTP 200 with ok:false on parse errors → check body
+  const body = await r.text();
+  let respJson = null;
+  try { respJson = JSON.parse(body); } catch (_) {}
+  console.log(`sendMessage Markdown: HTTP ${r.status} ok=${respJson?.ok}`);
+  if (respJson?.ok) return;
+
+  console.log(`sendMessage Markdown error: ${body.slice(0, 300)}`);
+  // Retry plain text
+  r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text }),
+  });
+  const body2 = await r.text();
+  let resp2 = null;
+  try { resp2 = JSON.parse(body2); } catch (_) {}
+  console.log(`sendMessage plain: HTTP ${r.status} ok=${resp2?.ok}`);
+  if (!resp2?.ok) console.log(`sendMessage plain error: ${body2.slice(0, 300)}`);
 }
