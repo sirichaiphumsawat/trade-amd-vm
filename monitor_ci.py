@@ -415,11 +415,19 @@ def check_amd():
             capture_output=True, text=True, timeout=90,
         )
         out = result.stdout
+        # Surface subprocess failures — previously silently hidden
+        if result.returncode != 0 or "451" in result.stderr or "Error" in result.stderr:
+            print(f"AMD subprocess rc={result.returncode}")
+            if result.stderr:
+                print(f"AMD stderr: {result.stderr[:500]}")
     except subprocess.TimeoutExpired:
         print("AMD check timeout")
         return None
 
     if "Entry" not in out:
+        # Print last few lines of output for diagnosis
+        tail = out.strip().split("\n")[-3:] if out.strip() else ["(empty stdout)"]
+        print(f"AMD: no Entry in output — tail: {' | '.join(tail)}")
         return None
 
     direction = re.search(r"Direction\s*:\s*(\w+)", out)
@@ -459,11 +467,17 @@ def check_vm():
             capture_output=True, text=True, timeout=360,
         )
         out = result.stdout
+        if result.returncode != 0 or "451" in result.stderr or "Error" in result.stderr:
+            print(f"V+M subprocess rc={result.returncode}")
+            if result.stderr:
+                print(f"V+M stderr: {result.stderr[:500]}")
     except subprocess.TimeoutExpired:
         print("V+M check timeout")
         return None
 
     if "ACTIVE" not in out:
+        tail = out.strip().split("\n")[-3:] if out.strip() else ["(empty stdout)"]
+        print(f"V+M: no ACTIVE in output — tail: {' | '.join(tail)}")
         return None
 
     entry_match = re.search(
