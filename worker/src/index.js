@@ -31,15 +31,22 @@ export default {
    * Cron handler — fires every 5 min per wrangler.toml [triggers].
    * Pings GitHub workflow_dispatch so the monitor actually runs reliably.
    * (GH Actions native cron skips ~90% of runs on public repos / weekends.)
+   *
+   * Also acts as HEARTBEAT WATCHDOG: if last GH run is > 15 min ago,
+   * send dead-system alert immediately so user never misses a setup
+   * silently again.
    */
   async scheduled(event, env, ctx) {
     if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
       console.error('Cron: missing GITHUB_TOKEN or GITHUB_REPO');
       return;
     }
-    const url = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/monitor.yml/dispatches`;
+
+    // 1) Trigger workflow
+    const dispatchUrl = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/monitor.yml/dispatches`;
+    let dispatchOk = false;
     try {
-      const r = await fetch(url, {
+      const r = await fetch(dispatchUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
@@ -49,9 +56,62 @@ export default {
         },
         body: JSON.stringify({ ref: 'master' }),
       });
-      console.log(`Cron triggered monitor: HTTP ${r.status}`);
+      dispatchOk = (r.status === 204);
+      console.log(`Cron dispatch: HTTP ${r.status}`);
+      if (!dispatchOk) {
+        const txt = await r.text();
+        await sendMessage(
+          env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID,
+          `🚨 *Monitor cron FAILED to trigger GH*\n\nHTTP ${r.status}\n\`\`\`\n${txt.slice(0, 300)}\n\`\`\`\n\nระบบอาจหยุดทำงาน — ไปเช็ค Cloudflare logs`
+        );
+      }
     } catch (e) {
       console.error(`Cron trigger failed: ${e.message}`);
+      await sendMessage(
+        env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID,
+        `🚨 *Monitor cron ERROR*\n\n\`${e.message}\`\n\nระบบหยุดทำงาน — ไปเช็ค Cloudflare logs`
+      );
+      return;
+    }
+
+    // 2) Heartbeat watchdog — check last GH run age
+    try {
+      const runsUrl = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/monitor.yml/runs?per_page=1`;
+      const r = await fetch(runsUrl, {
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'trade-amd-vm-bot-cron',
+        },
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      const run = d.workflow_runs && d.workflow_runs[0];
+      if (!run) return;
+
+      const ageMin = (Date.now() - new Date(run.created_at).getTime()) / 60000;
+      const lastStatus = run.status === 'completed' ? run.conclusion : run.status;
+
+      // Alert if: last run > 15 min old (silent failure)
+      //       OR  last run completed with failure (recent failure)
+      const silent = ageMin > 15;
+      const failed = run.status === 'completed' && run.conclusion !== 'success';
+
+      if (silent || failed) {
+        // Throttle: don't spam — only alert once per hour
+        // Use KV would be ideal, but for simplicity just check minutes mod
+        const minute = new Date().getUTCMinutes();
+        if (minute % 60 < 5) {   // ~once per hour at top of hour
+          const reason = silent
+            ? `last run ${ageMin.toFixed(0)} min ago (should be < 10)`
+            : `last run failed: ${lastStatus}`;
+          await sendMessage(
+            env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID,
+            `⚠️ *Monitor heartbeat ผิดปกติ*\n\n${reason}\n\n[ดู runs](https://github.com/${env.GITHUB_REPO}/actions/workflows/monitor.yml)`
+          );
+        }
+      }
+    } catch (e) {
+      console.error(`Heartbeat check failed: ${e.message}`);
     }
   },
 
