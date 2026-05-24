@@ -1,9 +1,10 @@
 name: Trade Monitor
 
+# NOTE: GitHub Actions native cron is unreliable (~90% skipped on weekends).
+# Cron is now driven by Cloudflare Worker — see worker/wrangler.toml [triggers].
+# CF Worker pings workflow_dispatch every 5 min (99%+ reliability).
 on:
-  schedule:
-    - cron: "*/5 * * * *"   # every 5 minutes
-  workflow_dispatch:         # allow manual trigger from Actions tab
+  workflow_dispatch:         # triggered by CF Worker cron + manual /check
 
 permissions:
   contents: write            # to commit monitor_state.json back

@@ -27,6 +27,34 @@ _Setup alert ส่งอัตโนมัติทุก 5 นาทีอย�
 
 
 export default {
+  /**
+   * Cron handler — fires every 5 min per wrangler.toml [triggers].
+   * Pings GitHub workflow_dispatch so the monitor actually runs reliably.
+   * (GH Actions native cron skips ~90% of runs on public repos / weekends.)
+   */
+  async scheduled(event, env, ctx) {
+    if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
+      console.error('Cron: missing GITHUB_TOKEN or GITHUB_REPO');
+      return;
+    }
+    const url = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/monitor.yml/dispatches`;
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'trade-amd-vm-bot-cron',
+        },
+        body: JSON.stringify({ ref: 'master' }),
+      });
+      console.log(`Cron triggered monitor: HTTP ${r.status}`);
+    } catch (e) {
+      console.error(`Cron trigger failed: ${e.message}`);
+    }
+  },
+
   async fetch(request, env) {
     if (request.method !== 'POST') {
       return new Response('trade-amd-vm bot worker — ok', { status: 200 });
