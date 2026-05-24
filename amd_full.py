@@ -42,7 +42,19 @@ CACHE_TTL_H = 4
 MAX_RETRIES = 3
 # ─────────────────────────────────────────────────────────────────────────────
 
-_ex = ccxt.binanceusdm({'enableRateLimit': True})
+# Geo-block fallback: many GH Actions runner IPs are blocked from
+# fapi.binance.com (HTTP 451). Try futures first; fall back to spot
+# (BTC/USDT) — price diff is basis points, negligible for our setup detection.
+try:
+    _ex = ccxt.binanceusdm({'enableRateLimit': True})
+    _ex.load_markets()
+except Exception as _e:
+    if '451' in str(_e) or 'restricted' in str(_e).lower():
+        print('[geo-block] fapi blocked, falling back to Binance Spot', flush=True)
+        SYMBOL = 'BTC/USDT'
+        _ex = ccxt.binance({'enableRateLimit': True})
+    else:
+        raise
 
 
 # ─── DATA FETCH ──────────────────────────────────────────────────────────────
