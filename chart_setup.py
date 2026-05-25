@@ -28,7 +28,7 @@ ASIAN_END       = 8           # UTC hour
 LEG_CANDLES     = 16          # MSS search window after M
 RETRACE_LO      = 0.35        # bounce zone low
 RETRACE_HI      = 0.65        # bounce zone high
-FIB_LEG_MIN     = 150         # USD
+FIB_LEG_MIN     = 120         # USD (matches monitor_ci.py)
 OUTPUT_DIR      = os.path.expanduser("~/Documents/btc_charts")
 LATEST_LINK     = os.path.join(OUTPUT_DIR, "latest.png")
 

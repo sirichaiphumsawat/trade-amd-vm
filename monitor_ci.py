@@ -4,7 +4,7 @@ monitor_ci.py — Single-run trade monitor for GitHub Actions
 
 Polls AMD + V+M once. Sends Telegram alert ONLY if:
   - Script outputs full setup signal
-  - fib_leg >= FIB_LEG_MIN ($150)
+  - fib_leg >= FIB_LEG_MIN ($120)
   - Signal is fresh (entry fired < STALE_AFTER_MIN ago)
   - Signature not seen before (dedup via monitor_state.json)
 
