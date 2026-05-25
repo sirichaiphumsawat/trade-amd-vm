@@ -34,7 +34,8 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT  = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # ─── USER RULES (per Trade.md) ───────────────────────────────────────────────
-FIB_LEG_MIN     = 150     # USD — skip thin setups
+FIB_LEG_MIN     = 120     # USD — skip thin setups (lowered from 150 after missing
+                          # 24 พค V+M LONG @ $76,702 fib_leg $138 which hit TP1+TP2+TP3)
 STALE_AFTER_MIN = 30      # min — skip if entry fired > 30 min ago (no chasing)
 TH_OFFSET       = timedelta(hours=7)
 
