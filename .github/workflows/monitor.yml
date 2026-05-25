@@ -5,6 +5,13 @@ name: Trade Monitor
 # CF Worker pings workflow_dispatch every 5 min (99%+ reliability).
 on:
   workflow_dispatch:         # triggered by CF Worker cron + manual /check
+    inputs:
+      simulate:
+        description: "Send simulate alert to verify pipeline (no real detection)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
 
 permissions:
   contents: write            # to commit monitor_state.json back
@@ -39,6 +46,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          SIMULATE_ALERT:     ${{ inputs.simulate == 'true' && '1' || '' }}
         run: python monitor_ci.py
 
       - name: Commit state + log + active trades if changed

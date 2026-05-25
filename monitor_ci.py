@@ -48,26 +48,45 @@ WR_TABLE = {
 
 
 # ─── TELEGRAM ────────────────────────────────────────────────────────────────
-def telegram_send(text: str) -> bool:
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT:
-        print("ERROR: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing")
-        return False
-    url  = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = urllib.parse.urlencode({
-        "chat_id": TELEGRAM_CHAT,
-        "text": text,
-        "parse_mode": "Markdown",
-    }).encode()
+def _telegram_post(text: str, parse_mode=None) -> tuple:
+    """Single sendMessage attempt. Returns (ok, response_dict)."""
+    payload = {"chat_id": TELEGRAM_CHAT, "text": text}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+    data = urllib.parse.urlencode(payload).encode()
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         with urllib.request.urlopen(url, data=data, timeout=10) as r:
             resp = json.loads(r.read())
-            if not resp.get("ok"):
-                print(f"Telegram API error: {resp}")
-                return False
-            return True
+            return resp.get("ok", False), resp
+    except urllib.error.HTTPError as e:
+        # Telegram returns 400 on Markdown parse errors — try to read body
+        try:
+            body = json.loads(e.read())
+        except Exception:
+            body = {"error_code": e.code, "description": str(e)}
+        return False, body
     except Exception as e:
-        print(f"Telegram send error: {e}")
+        return False, {"error": str(e)}
+
+
+def telegram_send(text: str) -> bool:
+    """Send text. Retries without parse_mode if Markdown parse fails."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT:
+        print("ERROR: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing")
         return False
+    # Try Markdown first
+    ok, resp = _telegram_post(text, parse_mode="Markdown")
+    if ok:
+        return True
+    print(f"Telegram Markdown failed: {resp.get('description', resp)}")
+    # Fallback: plain text (no formatting but always delivers)
+    ok2, resp2 = _telegram_post(text, parse_mode=None)
+    if ok2:
+        print("Telegram plain-text fallback OK")
+        return True
+    print(f"Telegram plain-text also failed: {resp2.get('description', resp2)}")
+    return False
 
 
 def telegram_send_photo(photo_path: str, caption: str) -> bool:
@@ -614,8 +633,45 @@ def send_alert(text: str, chart_path=None) -> bool:
     return telegram_send(text)
 
 
+# ─── SIMULATE MODE (E2E test) ────────────────────────────────────────────────
+def simulate_alert():
+    """When SIMULATE_ALERT=1, send a fake AMD SHORT alert based on current BTC price.
+    Bypasses detection — purely tests the alert delivery pipeline (format + chart + send).
+    """
+    import json as _json, urllib.request as _ur
+    try:
+        d = _json.loads(_ur.urlopen(
+            "https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT",
+            timeout=10).read())
+        price = float(d["price"])
+    except Exception:
+        price = 77000.0
+
+    fake = {
+        "signature": f"SIMULATE-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        "direction": "SHORT",
+        "entry":     round(price + 200),
+        "sl":        round(price + 1000),
+        "fib_leg":   200,
+        "tp1":       round(price - 500),
+        "tp2":       round(price - 1200),
+        "tp3":       round(price - 1700),
+    }
+    print(f"[SIMULATE] Fake AMD SHORT @ ${price:,.0f}")
+    msg = format_alert("AMD", fake) + "\n\n_🧪 SIMULATE — ไม่ใช่ alert จริง (test pipeline)_"
+    chart = try_build_amd_chart()
+    ok = send_alert(msg, chart)
+    print(f"[SIMULATE] sent={ok}")
+    return ok
+
+
 # ─── MAIN ────────────────────────────────────────────────────────────────────
 def main():
+    # E2E pipeline test mode — set SIMULATE_ALERT=1 env var
+    if os.environ.get("SIMULATE_ALERT"):
+        simulate_alert()
+        sys.exit(0)
+
     state = load_state()
     new_alerts = []
 
