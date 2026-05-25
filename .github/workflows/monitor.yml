@@ -57,10 +57,21 @@ jobs:
           [ -n "$(git status --porcelain monitor_state.json)" ] && changed="$changed monitor_state.json"
           [ -n "$(git status --porcelain alerts_log.json)"  ]   && changed="$changed alerts_log.json"
           [ -n "$(git status --porcelain active_trades.json)" ] && changed="$changed active_trades.json"
-          if [ -n "$changed" ]; then
-            git add $changed
-            git commit -m "Update monitor state + log + active trades [skip ci]"
-            git push
-          else
+          if [ -z "$changed" ]; then
             echo "No state changes to commit"
+            exit 0
           fi
+          git add $changed
+          git commit -m "Update monitor state + log + active trades [skip ci]"
+          # Retry push up to 3 times — concurrent runs may cause non-fast-forward
+          for i in 1 2 3; do
+            if git push 2>&1; then
+              echo "Push succeeded on attempt $i"
+              exit 0
+            fi
+            echo "Push attempt $i failed — pull rebase + retry"
+            git pull --rebase origin master || git rebase --abort
+            sleep 2
+          done
+          echo "All push attempts failed — state not persisted (will retry next run)"
+          exit 1
