@@ -26,21 +26,32 @@ THAI_DAYS = ["จันทร์", "อังคาร", "พุธ", "พฤห
 
 # ─── DATA ────────────────────────────────────────────────────────────────────
 def fetch_btc_24h():
-    """Fetch BTCUSDT 24h ticker stats from Binance Futures."""
-    url = "https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT"
-    try:
-        d = json.loads(urllib.request.urlopen(url, timeout=10).read())
-        return {
-            "price":   float(d["lastPrice"]),
-            "open":    float(d["openPrice"]),
-            "high":    float(d["highPrice"]),
-            "low":     float(d["lowPrice"]),
-            "change":  float(d["priceChangePercent"]),
-            "volume":  float(d["quoteVolume"]) / 1e9,   # billions USDT
-        }
-    except Exception as e:
-        print(f"Binance fetch error: {e}")
-        return None
+    """Fetch BTCUSDT 24h ticker. Multi-endpoint fallback for GH Actions geo-block.
+
+    GH runner IPs often blocked from fapi.binance.com AND api.binance.com (HTTP 451).
+    data-api.binance.vision works. Spot price ≈ futures within basis points.
+    """
+    endpoints = [
+        # (url, response_format) — format: 'futures' = has openPrice etc., 'spot' = same shape
+        "https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT",
+        "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
+        "https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT",
+    ]
+    for url in endpoints:
+        try:
+            d = json.loads(urllib.request.urlopen(url, timeout=10).read())
+            return {
+                "price":   float(d["lastPrice"]),
+                "open":    float(d["openPrice"]),
+                "high":    float(d["highPrice"]),
+                "low":     float(d["lowPrice"]),
+                "change":  float(d["priceChangePercent"]),
+                "volume":  float(d["quoteVolume"]) / 1e9,
+            }
+        except Exception as e:
+            print(f"24h fetch error ({url.split('?')[0]}): {e}")
+            continue
+    return None
 
 
 def load_alerts_24h():
