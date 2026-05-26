@@ -12,6 +12,8 @@ on:
         default: "false"
         type: choice
         options: ["false", "true"]
+  push:
+    branches: [master]
 
 permissions:
   contents: write            # to commit monitor_state.json back
