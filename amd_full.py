@@ -36,7 +36,7 @@ SL_BUFFER   = 10   # $ buffer เหนือ 1m M wick
 TP_RATIOS   = [3.5, 6.0, 8.0]   # TP1, TP2, TP3
 
 RSI_PERIOD  = 14   # RSI period
-USE_DIV     = True # False = ปิด divergence filter ชั่วคราว
+USE_DIV     = False
 
 CACHE_FILE  = os.path.expanduser('~/Documents/.cache_1m_btcusdt.pkl')
 CACHE_TTL_H = 4

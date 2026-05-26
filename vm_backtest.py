@@ -37,7 +37,7 @@ ZONE_WIDTH   = 120    # ±$ รอบ neckline สำหรับ 1m zone
 SL_BUFFER    = 10     # $ ใต้ 1m M wick
 
 RSI_PERIOD   = 14
-USE_DIV      = True   # RSI bullish divergence filter
+USE_DIV      = False
 USE_TREND    = False  # EMA200 uptrend filter (False = ปิด)
 EMA_PERIOD   = 200
 
