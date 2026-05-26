@@ -9,8 +9,6 @@ Usage:
     python3 chart_setup.py --no-open  # ไม่เปิด Preview อัตโนมัติ
 """
 
-import urllib.request
-import json
 import os
 import sys
 import subprocess
@@ -19,6 +17,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import mplfinance as mpf
+
+from exchange_utils import fetch_klines_raw, fetch_price as _fetch_price
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────────
 SYMBOL          = "BTCUSDT"
@@ -49,8 +49,7 @@ ASIAN_COLOR     = "#5a6e9a"   # asian range (blue)
 
 # ─── DATA ────────────────────────────────────────────────────────────────────
 def fetch_klines():
-    url = f"https://fapi.binance.com/fapi/v1/klines?symbol={SYMBOL}&interval={TF}&limit=200"
-    data = json.loads(urllib.request.urlopen(url, timeout=15).read())
+    data = fetch_klines_raw(symbol=SYMBOL, tf=TF, limit=200)
     df = pd.DataFrame(data, columns=[
         "open_time","open","high","low","close","volume",
         "close_time","qav","trades","tbbav","tbqav","ignore"
@@ -63,8 +62,7 @@ def fetch_klines():
 
 
 def fetch_price():
-    url = f"https://fapi.binance.com/fapi/v1/ticker/price?symbol={SYMBOL}"
-    return float(json.loads(urllib.request.urlopen(url, timeout=10).read())["price"])
+    return _fetch_price(symbol=SYMBOL)
 
 
 # ─── DETECT AMD STRUCTURE ─────────────────────────────────────────────────────

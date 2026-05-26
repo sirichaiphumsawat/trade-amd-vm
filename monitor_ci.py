@@ -420,17 +420,17 @@ def check_amd():
             capture_output=True, text=True, timeout=90,
         )
         out = result.stdout
-        # Surface subprocess failures — previously silently hidden
-        if result.returncode != 0 or "451" in result.stderr or "Error" in result.stderr:
-            print(f"AMD subprocess rc={result.returncode}")
-            if result.stderr:
-                print(f"AMD stderr: {result.stderr[:500]}")
+        if result.returncode != 0:
+            err_msg = result.stderr[:300] if result.stderr else "(no stderr)"
+            print(f"AMD subprocess CRASHED rc={result.returncode}: {err_msg}")
+            telegram_send(f"⚠️ *AMD script crash*\nrc={result.returncode}\n```\n{err_msg}\n```")
+            return None
     except subprocess.TimeoutExpired:
         print("AMD check timeout")
+        telegram_send("⚠️ *AMD script timeout* (>90s)")
         return None
 
     if "Entry" not in out:
-        # Print last few lines of output for diagnosis
         tail = out.strip().split("\n")[-3:] if out.strip() else ["(empty stdout)"]
         print(f"AMD: no Entry in output — tail: {' | '.join(tail)}")
         return None
@@ -472,12 +472,14 @@ def check_vm():
             capture_output=True, text=True, timeout=360,
         )
         out = result.stdout
-        if result.returncode != 0 or "451" in result.stderr or "Error" in result.stderr:
-            print(f"V+M subprocess rc={result.returncode}")
-            if result.stderr:
-                print(f"V+M stderr: {result.stderr[:500]}")
+        if result.returncode != 0:
+            err_msg = result.stderr[:300] if result.stderr else "(no stderr)"
+            print(f"V+M subprocess CRASHED rc={result.returncode}: {err_msg}")
+            telegram_send(f"⚠️ *V+M script crash*\nrc={result.returncode}\n```\n{err_msg}\n```")
+            return None
     except subprocess.TimeoutExpired:
         print("V+M check timeout")
+        telegram_send("⚠️ *V+M script timeout* (>360s)")
         return None
 
     if "ACTIVE" not in out:
