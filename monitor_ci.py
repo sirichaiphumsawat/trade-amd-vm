@@ -21,6 +21,8 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+from exchange_utils import fetch_1m_candles, fetch_ticker_24h, fetch_price
+
 HERE         = Path(__file__).resolve().parent
 AMD_SCRIPT   = HERE / "amd_full.py"
 VM_SCRIPT    = HERE / "vm_backtest.py"
@@ -284,25 +286,8 @@ def add_active(strategy: str, data: dict):
 
 def fetch_1m_range(since_ms: int):
     """Fetch 1m BTC candles since timestamp. Returns list of (high, low, close_time).
-
-    GH Actions runner IPs are geo-blocked from fapi.binance.com (futures, HTTP 451).
-    Spot API api.binance.com works fine and gives essentially identical high/low
-    for 1m candles (spot ≈ perp within a few dollars, irrelevant for $50+ TP hits).
-
-    Tries spot first; falls back to multiple endpoints if blocked.
-    """
-    endpoints = [
-        f"https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&startTime={since_ms}&limit=500",
-        f"https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1m&startTime={since_ms}&limit=500",
-    ]
-    for url in endpoints:
-        try:
-            data = json.loads(urllib.request.urlopen(url, timeout=10).read())
-            return [(float(c[2]), float(c[3]), int(c[6])) for c in data]
-        except Exception as e:
-            print(f"1m fetch error ({url.split('?')[0]}): {e}")
-            continue
-    return []
+    Uses exchange_utils with full multi-exchange fallback chain."""
+    return fetch_1m_candles(since_ms)
 
 
 # ─── HIT DETECTION ───────────────────────────────────────────────────────────
@@ -638,12 +623,8 @@ def simulate_alert():
     """When SIMULATE_ALERT=1, send a fake AMD SHORT alert based on current BTC price.
     Bypasses detection — purely tests the alert delivery pipeline (format + chart + send).
     """
-    import json as _json, urllib.request as _ur
     try:
-        d = _json.loads(_ur.urlopen(
-            "https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT",
-            timeout=10).read())
-        price = float(d["price"])
+        price = fetch_price()
     except Exception:
         price = 77000.0
 
