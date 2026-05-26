@@ -650,6 +650,76 @@ def main():
         simulate_alert()
         sys.exit(0)
 
+    # Live status report — real market data
+    if os.environ.get("LIVE_REPORT"):
+        try:
+            price = fetch_price()
+            ticker = fetch_ticker_24h() or {}
+            now = datetime.now(timezone.utc)
+            th = now + TH_OFFSET
+            hour = now.hour
+
+            if hour < 8:
+                phase = "A (Accumulation)"
+            elif hour < 13:
+                phase = "M (Manipulation)"
+            elif hour < 17:
+                phase = "D (Distribution)"
+            else:
+                phase = "Off-session"
+
+            hi = ticker.get("high", 0)
+            lo = ticker.get("low", 0)
+            chg = ticker.get("change", 0)
+
+            report = (
+                f"📊 *Live Market Report*\n"
+                f"{now.strftime('%H:%M')} UTC ({th.strftime('%H:%M')} TH)\n\n"
+                f"```\n"
+                f"BTC       ${price:,.0f}\n"
+                f"24h H/L   ${hi:,.0f} / ${lo:,.0f}\n"
+                f"24h Chg   {'+' if chg >= 0 else ''}{chg:.2f}%\n"
+                f"Phase     {phase}\n"
+                f"```\n"
+            )
+
+            # Run AMD + V+M detection and report what was found
+            amd_result = check_amd()
+            vm_result = check_vm()
+
+            if amd_result:
+                d = amd_result
+                report += (
+                    f"\n🚨 *AMD {d['direction']} detected*\n"
+                    f"```\n"
+                    f"Entry   ${d['entry']:,.0f}\n"
+                    f"SL      ${d['sl']:,.0f}\n"
+                    f"TP1     ${d['tp1']:,.0f}\n"
+                    f"fib_leg ${d['fib_leg']:,.0f}\n"
+                    f"```"
+                )
+            else:
+                report += f"\nAMD: no setup"
+
+            if vm_result:
+                d = vm_result
+                report += (
+                    f"\n🚀 *V+M LONG detected*\n"
+                    f"```\n"
+                    f"Entry   ${d['entry']:,.0f}\n"
+                    f"SL      ${d['sl']:,.0f}\n"
+                    f"TP1     ${d['tp1']:,.0f}\n"
+                    f"fib_leg ${d['fib_leg']:,.0f}\n"
+                    f"```"
+                )
+            else:
+                report += f"\nV+M: no setup"
+
+            telegram_send(report)
+        except Exception as e:
+            telegram_send(f"⚠️ Live report error: {e}")
+        sys.exit(0)
+
     state = load_state()
     new_alerts = []
 
