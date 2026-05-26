@@ -650,9 +650,6 @@ def main():
         simulate_alert()
         sys.exit(0)
 
-    # TEMP health check — remove after confirming pipeline works
-    telegram_send("🔄 *Monitor ping* — pipeline alive")
-
     state = load_state()
     new_alerts = []
 
