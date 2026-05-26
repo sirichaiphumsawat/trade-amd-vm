@@ -650,81 +650,51 @@ def main():
         simulate_alert()
         sys.exit(0)
 
-    # Live status report — real market data
-    if os.environ.get("LIVE_REPORT"):
-        try:
-            price = fetch_price()
-            ticker = fetch_ticker_24h() or {}
-            now = datetime.now(timezone.utc)
-            th = now + TH_OFFSET
-            hour = now.hour
-
-            if hour < 8:
-                phase = "A (Accumulation)"
-            elif hour < 13:
-                phase = "M (Manipulation)"
-            elif hour < 17:
-                phase = "D (Distribution)"
-            else:
-                phase = "Off-session"
-
-            hi = ticker.get("high", 0)
-            lo = ticker.get("low", 0)
-            chg = ticker.get("change", 0)
-
-            report = (
-                f"📊 *Live Market Report*\n"
-                f"{now.strftime('%H:%M')} UTC ({th.strftime('%H:%M')} TH)\n\n"
-                f"```\n"
-                f"BTC       ${price:,.0f}\n"
-                f"24h H/L   ${hi:,.0f} / ${lo:,.0f}\n"
-                f"24h Chg   {'+' if chg >= 0 else ''}{chg:.2f}%\n"
-                f"Phase     {phase}\n"
-                f"```\n"
-            )
-
-            # Run AMD + V+M detection and report what was found
-            amd_result = check_amd()
-            vm_result = check_vm()
-
-            if amd_result:
-                d = amd_result
-                report += (
-                    f"\n🚨 *AMD {d['direction']} detected*\n"
-                    f"```\n"
-                    f"Entry   ${d['entry']:,.0f}\n"
-                    f"SL      ${d['sl']:,.0f}\n"
-                    f"TP1     ${d['tp1']:,.0f}\n"
-                    f"fib_leg ${d['fib_leg']:,.0f}\n"
-                    f"```"
-                )
-            else:
-                report += f"\nAMD: no setup"
-
-            if vm_result:
-                d = vm_result
-                report += (
-                    f"\n🚀 *V+M LONG detected*\n"
-                    f"```\n"
-                    f"Entry   ${d['entry']:,.0f}\n"
-                    f"SL      ${d['sl']:,.0f}\n"
-                    f"TP1     ${d['tp1']:,.0f}\n"
-                    f"fib_leg ${d['fib_leg']:,.0f}\n"
-                    f"```"
-                )
-            else:
-                report += f"\nV+M: no setup"
-
-            telegram_send(report)
-        except Exception as e:
-            telegram_send(f"⚠️ Live report error: {e}")
-        sys.exit(0)
-
     state = load_state()
     new_alerts = []
 
     # AMD — generate chart (SHORT only for now; LONG uses text)
     amd = check_amd()
+    vm = check_vm()
+
+    # Status report every 30 min if no setup found
+    if not amd and not vm:
+        last_report = state.get("last_status_ts", "")
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        minutes_since = 9999
+        if last_report:
+            try:
+                last_dt = datetime.fromisoformat(last_report.replace("Z", "+00:00"))
+                minutes_since = (datetime.now(timezone.utc) - last_dt).total_seconds() / 60
+            except Exception:
+                pass
+        if minutes_since >= 30:
+            try:
+                price = fetch_price()
+                ticker = fetch_ticker_24h() or {}
+                now = datetime.now(timezone.utc)
+                th = now + TH_OFFSET
+                hour = now.hour
+                phase = "A" if hour < 8 else "M" if hour < 13 else "D" if hour < 17 else "Off"
+                hi = ticker.get("high", 0)
+                lo = ticker.get("low", 0)
+                chg = ticker.get("change", 0)
+                msg = (
+                    f"📊 *Status*  {now.strftime('%H:%M')} UTC ({th.strftime('%H:%M')} TH)\n"
+                    f"```\n"
+                    f"BTC    ${price:,.0f}  ({'+' if chg >= 0 else ''}{chg:.1f}%)\n"
+                    f"H/L    ${hi:,.0f} / ${lo:,.0f}\n"
+                    f"Phase  {phase}\n"
+                    f"AMD    no setup\n"
+                    f"V+M    no setup\n"
+                    f"```"
+                )
+                telegram_send(msg)
+                state["last_status_ts"] = now_iso
+                save_state(state)
+            except Exception as e:
+                print(f"Status report error: {e}")
+
     if amd and amd["signature"] != state.get("last_amd_sig"):
         msg = format_alert("AMD", amd)
         chart = try_build_amd_chart() if amd["direction"] == "SHORT" else None
@@ -734,8 +704,6 @@ def main():
             add_active("AMD", amd)
             new_alerts.append(f"AMD {amd['direction']}{' +chart' if chart else ''}")
 
-    # V+M — chart attached when structure data is available
-    vm = check_vm()
     if vm and vm["signature"] != state.get("last_vm_sig"):
         msg = format_alert("VM", vm)
         chart = try_build_vm_chart(vm)

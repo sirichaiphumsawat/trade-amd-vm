@@ -6,8 +6,6 @@ name: Trade Monitor
 on:
   schedule:
     - cron: '*/5 * * * *'
-  push:
-    branches: [master]
   workflow_dispatch:
     inputs:
       simulate:
@@ -51,7 +49,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
           SIMULATE_ALERT:     ${{ inputs.simulate == 'true' && '1' || '' }}
-          LIVE_REPORT:        "1"
         run: python monitor_ci.py
 
       - name: Commit state + log + active trades if changed
