@@ -515,11 +515,6 @@ def check_vm():
         print(f"V+M skip: cannot parse entry time '{entry_ts_str}'")
         return None
 
-    age_min = (datetime.now(timezone.utc) - entry_dt).total_seconds() / 60
-    if age_min > STALE_AFTER_MIN:
-        print(f"V+M skip: entry fired {age_min:.0f} min ago (stale > {STALE_AFTER_MIN} min — chasing)")
-        return None
-
     return {
         "signature": f"VM-{entry_ts_str}",
         "direction": "LONG",
