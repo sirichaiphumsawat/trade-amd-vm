@@ -4,7 +4,9 @@ name: Trade Monitor
 # Cron is now driven by Cloudflare Worker — see worker/wrangler.toml [triggers].
 # CF Worker pings workflow_dispatch every 5 min (99%+ reliability).
 on:
-  workflow_dispatch:         # triggered by CF Worker cron + manual /check
+  schedule:
+    - cron: '*/5 * * * *'    # backup cron if CF Worker is dead
+  workflow_dispatch:
     inputs:
       simulate:
         description: "Send simulate alert to verify pipeline (no real detection)"
