@@ -89,6 +89,7 @@ Backup: GH Actions schedule cron */5 (ไม่เสถียร 100% แต่
 | 1m mini-AMD | ≥ 3 candles ใน zone | เปิด |
 | fib_leg | ≥ $120 | เปิด (ลดจาก $150) |
 | Stale timer | - | **ตัดออก** |
+| Min SL distance | `max(fib_leg × 20%, $80)` | เปิด — กัน instant stop จาก noise |
 | Dedup | signature ไม่ซ้ำ | เปิด |
 
 ---

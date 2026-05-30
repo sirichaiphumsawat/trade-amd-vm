@@ -33,6 +33,11 @@ BOUNCE_LOOK = 24   # จำนวน 15m candles หา Bounce หลัง MSS
 ZONE_WIDTH  = 80   # ±$ รอบ bounce top สำหรับ 1m zone
 SL_BUFFER   = 10   # $ buffer เหนือ 1m M wick
 
+# Min SL distance: ใช้ค่าใหญ่กว่าระหว่าง (fib_leg × MIN_SL_PCT) หรือ MIN_SL_USD
+# กัน instant stop-out จาก noise เมื่อ M wick อยู่ติด entry มาก
+MIN_SL_PCT  = 0.20  # 20% ของ fib_leg
+MIN_SL_USD  = 80    # $ floor ขั้นต่ำ
+
 TP_RATIOS   = [3.5, 6.0, 8.0]   # TP1, TP2, TP3
 
 RSI_PERIOD  = 14   # RSI period
@@ -331,6 +336,12 @@ def detect_signals(df15: pd.DataFrame, df1m: pd.DataFrame) -> list:
                 leg  = bounce_top - mss_low
                 tps  = [round(bounce_top - leg * r, 2) for r in TP_RATIOS]
 
+                # Enforce min SL distance (SHORT: SL above entry)
+                entry_px = round(e['entry'], 2)
+                min_dist = max(leg * MIN_SL_PCT, MIN_SL_USD)
+                nat_dist = e['sl'] - entry_px
+                sl       = round(entry_px + min_dist, 2) if nat_dist < min_dist else e['sl']
+
                 signals.append({
                     'date':       date,
                     'direction':  'SHORT',
@@ -341,12 +352,12 @@ def detect_signals(df15: pd.DataFrame, df1m: pd.DataFrame) -> list:
                     'bounce_top': round(bounce_top, 2),
                     'fib_leg':    round(leg, 2),
                     'entry_time': e['entry_time'],
-                    'entry':      round(e['entry'], 2),
-                    'sl':         e['sl'],
+                    'entry':      entry_px,
+                    'sl':         sl,
                     'tp1':        tps[0],
                     'tp2':        tps[1],
                     'tp3':        tps[2],
-                    'risk_pts':   round(e['sl'] - e['entry'], 2),
+                    'risk_pts':   round(sl - entry_px, 2),
                 })
                 found = True
 
@@ -376,6 +387,12 @@ def detect_signals(df15: pd.DataFrame, df1m: pd.DataFrame) -> list:
                 leg = mss_high - bounce_bot
                 tps = [round(bounce_bot + leg * r, 2) for r in TP_RATIOS]
 
+                # Enforce min SL distance (LONG: SL below entry)
+                entry_px = round(e['entry'], 2)
+                min_dist = max(leg * MIN_SL_PCT, MIN_SL_USD)
+                nat_dist = entry_px - e['sl']
+                sl       = round(entry_px - min_dist, 2) if nat_dist < min_dist else e['sl']
+
                 signals.append({
                     'date':       date,
                     'direction':  'LONG',
@@ -386,12 +403,12 @@ def detect_signals(df15: pd.DataFrame, df1m: pd.DataFrame) -> list:
                     'bounce_top': round(bounce_bot, 2),
                     'fib_leg':    round(leg, 2),
                     'entry_time': e['entry_time'],
-                    'entry':      round(e['entry'], 2),
-                    'sl':         e['sl'],
+                    'entry':      entry_px,
+                    'sl':         sl,
                     'tp1':        tps[0],
                     'tp2':        tps[1],
                     'tp3':        tps[2],
-                    'risk_pts':   round(e['entry'] - e['sl'], 2),
+                    'risk_pts':   round(entry_px - sl, 2),
                 })
                 found = True
 

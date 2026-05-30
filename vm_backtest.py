@@ -36,6 +36,11 @@ MIN_HL_GAP   = 0.002  # W low ต้องสูงกว่า V low ≥ 0.2%
 ZONE_WIDTH   = 120    # ±$ รอบ neckline สำหรับ 1m zone
 SL_BUFFER    = 10     # $ ใต้ 1m M wick
 
+# Min SL distance: ใช้ค่าใหญ่กว่าระหว่าง (fib_leg × MIN_SL_PCT) หรือ MIN_SL_USD
+# กัน instant stop-out จาก noise เมื่อ M wick อยู่ติด entry มาก
+MIN_SL_PCT   = 0.20   # 20% ของ fib_leg
+MIN_SL_USD   = 80     # $ floor ขั้นต่ำ
+
 RSI_PERIOD   = 14
 USE_DIV      = False
 USE_TREND    = False  # EMA200 uptrend filter (False = ปิด)
@@ -252,7 +257,12 @@ def detect_signals(df15: pd.DataFrame, df1m: pd.DataFrame) -> list:
         # ⑦ SL / TP  (AMD style: neckline + fib_leg × ratio)
         fib_leg  = round(neckline - w_low, 2)
         entry    = round(e['entry'], 2)
-        sl       = e['sl']
+
+        # Enforce min SL distance (LONG: SL below entry)
+        min_dist = max(fib_leg * MIN_SL_PCT, MIN_SL_USD)
+        nat_dist = entry - e['sl']
+        sl       = round(entry - min_dist, 2) if nat_dist < min_dist else e['sl']
+
         risk     = round(entry - sl, 2)
 
         if risk <= 0 or fib_leg <= 0:
