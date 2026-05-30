@@ -135,7 +135,10 @@ TP3  800%      : $104,700 − $500 × 8.0 = $100,700   RR 1:33
 
 ## Universal Rules
 
-- **Minimum fib_leg: $150** (สมดุลระหว่าง filter thin setups กับเก็บ signals ส่วนใหญ่ — target net ~$7 ที่ TP1)
+- **Minimum fib_leg: $120** (ลดจาก $150 หลังพลาด 2 winning V+M signals ที่ $138)
+- **Minimum SL distance: `max(fib_leg × 20%, $80)`** — กัน instant stop จาก 1m noise (เคสจริง V+M LONG entry $73,727 SL $73,686 = risk แค่ $41 โดน noise เด้งทันที)
+- **RSI Divergence filter: ปิดทั้ง AMD + V+M** (เคยกรอง 90 วันเหลือแค่ 16 signals)
+- **Stale entry filter: ตัดออก** (เคยข้าม V+M signal ที่ fire > 30 นาที)
 - **Setup timeout: ไม่มี hard timeout** — setup ค้างได้นานถ้า structure ยังไม่เสีย (retrace ≤ 65%, ไม่มี M ใหม่) ตัดสินใจปิดเอง
 
 ---
@@ -151,7 +154,7 @@ TP3  800%      : $104,700 − $500 × 8.0 = $100,700   RR 1:33
 □ 1m mini-AMD ครบ (A → M → D)
 □ SL = เหนือ/ใต้ 1m M wick + $10
 □ คำนวณ TP1/TP2/TP3 จาก fib_leg แล้ว
-□ fib_leg ≥ $150
+□ fib_leg ≥ $120
 ```
 
 ---
@@ -265,7 +268,7 @@ TP3 800%   = $97,500 + $1,700 × 8.0 = $111,100  (RR ~7x)
 □ RSI bullish divergence (W RSI > V RSI)
 □ 1m mini-AMD ที่ neckline ครบ (A → M → D)
 □ SL = ใต้ 1m M wick − $10
-□ fib_leg ≥ $150
+□ fib_leg ≥ $120
 □ ตลาดเป็น uptrend (ดู context ภาพใหญ่)
 ```
 
