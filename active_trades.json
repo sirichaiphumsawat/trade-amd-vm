@@ -9,25 +9,9 @@
     "tp2": 66311.65,
     "tp3": 66793.11,
     "sent_at": "2026-06-17T13:26:38Z",
-    "last_check": "2026-06-17T19:06:36Z",
+    "last_check": "2026-06-17T19:11:35Z",
     "tp1_hit": true,
     "tp2_hit": true,
-    "tp3_hit": false,
-    "sl_hit": false
-  },
-  {
-    "signature": "VM-06/17 18:31 UTC",
-    "strategy": "VM",
-    "direction": "LONG",
-    "entry": 65586.74,
-    "sl": 65220.0,
-    "tp1": 67871.69,
-    "tp2": 69593.34,
-    "tp3": 70970.66,
-    "sent_at": "2026-06-17T18:36:39Z",
-    "last_check": "2026-06-17T19:06:36Z",
-    "tp1_hit": false,
-    "tp2_hit": false,
     "tp3_hit": false,
     "sl_hit": false
   }
