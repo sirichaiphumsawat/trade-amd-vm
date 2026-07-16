@@ -1,21 +1,5 @@
 [
   {
-    "signature": "VM-07/16 13:30 UTC",
-    "strategy": "VM",
-    "direction": "LONG",
-    "entry": 64326.0,
-    "sl": 64101.71,
-    "tp1": 65643.43,
-    "tp2": 66545.88,
-    "tp3": 67267.84,
-    "sent_at": "2026-07-16T13:31:49Z",
-    "last_check": "2026-07-16T17:16:54Z",
-    "tp1_hit": false,
-    "tp2_hit": false,
-    "tp3_hit": false,
-    "sl_hit": false
-  },
-  {
     "signature": "AMD-2026-07-16-63,872.00",
     "strategy": "AMD",
     "direction": "LONG",
@@ -25,7 +9,7 @@
     "tp2": 66093.9,
     "tp3": 66739.46,
     "sent_at": "2026-07-16T13:46:49Z",
-    "last_check": "2026-07-16T17:16:54Z",
+    "last_check": "2026-07-16T17:21:57Z",
     "tp1_hit": false,
     "tp2_hit": false,
     "tp3_hit": false,
