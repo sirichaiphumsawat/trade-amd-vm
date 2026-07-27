@@ -1,18 +1,1 @@
-[
-  {
-    "signature": "AMD-2026-07-27-64,836.00",
-    "strategy": "AMD",
-    "direction": "LONG",
-    "entry": 65053.99,
-    "sl": 64883.51,
-    "tp1": 65550.3,
-    "tp2": 65966.22,
-    "tp3": 66298.96,
-    "sent_at": "2026-07-27T13:16:29Z",
-    "last_check": "2026-07-27T14:29:29Z",
-    "tp1_hit": true,
-    "tp2_hit": false,
-    "tp3_hit": false,
-    "sl_hit": false
-  }
-]
+[]
