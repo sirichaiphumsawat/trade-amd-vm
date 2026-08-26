@@ -1,18 +1,1 @@
-[
-  {
-    "signature": "VM-08/26 01:34 UTC",
-    "strategy": "VM",
-    "direction": "LONG",
-    "entry": 78916.65,
-    "sl": 78779.05,
-    "tp1": 81408.0,
-    "tp2": 83128.0,
-    "tp3": 84504.0,
-    "sent_at": "2026-08-26T01:36:14Z",
-    "last_check": "2026-08-26T01:51:07Z",
-    "tp1_hit": false,
-    "tp2_hit": false,
-    "tp3_hit": false,
-    "sl_hit": false
-  }
-]
+[]
