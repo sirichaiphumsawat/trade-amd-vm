@@ -1,21 +1,5 @@
 [
   {
-    "signature": "VM-09/11 13:48 UTC",
-    "strategy": "VM",
-    "direction": "LONG",
-    "entry": 78152.09,
-    "sl": 77892.28,
-    "tp1": 81281.03,
-    "tp2": 83518.38,
-    "tp3": 85308.26,
-    "sent_at": "2026-09-11T14:16:35Z",
-    "last_check": "2026-09-11T15:51:29Z",
-    "tp1_hit": false,
-    "tp2_hit": false,
-    "tp3_hit": false,
-    "sl_hit": false
-  },
-  {
     "signature": "AMD-2026-09-11-79,333.00",
     "strategy": "AMD",
     "direction": "SHORT",
@@ -25,8 +9,8 @@
     "tp2": 76804.64,
     "tp3": 76122.86,
     "sent_at": "2026-09-11T15:01:24Z",
-    "last_check": "2026-09-11T15:51:29Z",
-    "tp1_hit": false,
+    "last_check": "2026-09-11T15:56:25Z",
+    "tp1_hit": true,
     "tp2_hit": false,
     "tp3_hit": false,
     "sl_hit": false
@@ -41,8 +25,8 @@
     "tp2": 77298.63,
     "tp3": 76824.59,
     "sent_at": "2026-09-11T15:31:40Z",
-    "last_check": "2026-09-11T15:51:29Z",
-    "tp1_hit": false,
+    "last_check": "2026-09-11T15:56:25Z",
+    "tp1_hit": true,
     "tp2_hit": false,
     "tp3_hit": false,
     "sl_hit": false
@@ -57,8 +41,8 @@
     "tp2": 76722.33,
     "tp3": 76017.77,
     "sent_at": "2026-09-11T15:36:29Z",
-    "last_check": "2026-09-11T15:51:29Z",
-    "tp1_hit": false,
+    "last_check": "2026-09-11T15:56:25Z",
+    "tp1_hit": true,
     "tp2_hit": false,
     "tp3_hit": false,
     "sl_hit": false
