@@ -9,9 +9,9 @@
     "tp2": 84665.95,
     "tp3": 83949.93,
     "sent_at": "2026-10-02T13:01:42Z",
-    "last_check": "2026-10-02T17:21:26Z",
+    "last_check": "2026-10-02T17:26:23Z",
     "tp1_hit": true,
-    "tp2_hit": false,
+    "tp2_hit": true,
     "tp3_hit": false,
     "sl_hit": false
   },
@@ -25,9 +25,9 @@
     "tp2": 84604.27,
     "tp3": 83859.69,
     "sent_at": "2026-10-02T14:06:28Z",
-    "last_check": "2026-10-02T17:21:26Z",
+    "last_check": "2026-10-02T17:26:23Z",
     "tp1_hit": true,
-    "tp2_hit": false,
+    "tp2_hit": true,
     "tp3_hit": false,
     "sl_hit": false
   }
