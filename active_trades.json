@@ -9,9 +9,25 @@
     "tp2": 63079.95,
     "tp3": 62779.93,
     "sent_at": "2026-11-19T14:46:27Z",
-    "last_check": "2026-11-19T15:56:32Z",
+    "last_check": "2026-11-19T16:01:37Z",
     "tp1_hit": true,
     "tp2_hit": true,
+    "tp3_hit": false,
+    "sl_hit": false
+  },
+  {
+    "signature": "AMD-2026-11-19-63,953.34",
+    "strategy": "AMD",
+    "direction": "SHORT",
+    "entry": 63203.3,
+    "sl": 63421.28,
+    "tp1": 61746.22,
+    "tp2": 60712.37,
+    "tp3": 59885.29,
+    "sent_at": "2026-11-19T16:01:37Z",
+    "last_check": "2026-11-19T16:01:37Z",
+    "tp1_hit": false,
+    "tp2_hit": false,
     "tp3_hit": false,
     "sl_hit": false
   }
