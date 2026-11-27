@@ -1,21 +1,5 @@
 [
   {
-    "signature": "AMD-2026-11-26-59,915.00",
-    "strategy": "AMD",
-    "direction": "LONG",
-    "entry": 60538.26,
-    "sl": 60181.79,
-    "tp1": 61934.4,
-    "tp2": 63008.45,
-    "tp3": 63867.69,
-    "sent_at": "2026-11-26T16:26:36Z",
-    "last_check": "2026-11-27T14:36:40Z",
-    "tp1_hit": true,
-    "tp2_hit": false,
-    "tp3_hit": false,
-    "sl_hit": false
-  },
-  {
     "signature": "AMD-2026-11-27-62,248.91",
     "strategy": "AMD",
     "direction": "SHORT",
@@ -25,7 +9,7 @@
     "tp2": 59976.42,
     "tp3": 59359.54,
     "sent_at": "2026-11-27T11:36:46Z",
-    "last_check": "2026-11-27T14:36:40Z",
+    "last_check": "2026-11-27T14:41:39Z",
     "tp1_hit": true,
     "tp2_hit": false,
     "tp3_hit": false,
